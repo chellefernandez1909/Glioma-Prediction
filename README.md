@@ -8,6 +8,7 @@ Research question:
 Compare various machine learning models for predicting whether a patient has LGG or GBM.
 
 Analysis planned:
+
 **EDA:**
 -  check data uniformly labeled
 -  checking missing data (imputation if needed)
