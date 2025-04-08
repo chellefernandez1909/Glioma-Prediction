@@ -23,7 +23,7 @@ Analysis planned:
 - compare sample generated using bootstrapping to figure out which sample is best
 
 (notes)
-= Logistic regresion : sensitive to sampling method
+- Logistic regresion : sensitive to sampling method
 - SVM: smote maybe better, best compare
 - RF: can hanfle imbalance, downsampling may be better, best compare
 - catBoost: class_weights/ compare models
