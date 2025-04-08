@@ -13,10 +13,20 @@ Analysis planned:
 -  check data uniformly labeled
 -  checking missing data (imputation if needed)
 -  Cramer V/ point biserial for multicollinearity
--  check class imbalance (bar plot, SMOTE-NC/ Downsampling/ Hybrid/ EasyEnsemble/ Balanced Random Forest)
+-  check class imbalance (bar plot)
 -  one-hot encoding categorical variables
 -  FAMD (visual analysis, relationship between categorical variables)
 -  Variable selection (FAMD? Lasso/ Elastic Net)
+
+**Handling class imbalance**
+- SMOTE-NC/ Downsampling/ Hybrid/ EasyEnsemble/ Balanced Random Forest
+- compare sample generated using bootstrapping to figure out which sample is best
+
+(notes)
+= Logistic regresion : sensitive to sampling method
+- SVM: smote maybe better, best compare
+- RF: can hanfle imbalance, downsampling may be better, best compare
+- catBoost: class_weights/ compare models
 
 Models
 (with var selected df)
