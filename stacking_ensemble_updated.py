@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import StratifiedKFold, cross_validate
+from sklearn.model_selection import GridSearchCV, StratifiedKFold, cross_validate
 from sklearn.ensemble import RandomForestClassifier, StackingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
@@ -144,26 +144,32 @@ rf_pipeline = Pipeline([
 # --- define stacking ensemble ---
 # List of base estimators
 base_estimators = [
-    ('catboost', cb_classifier),
-    ('svm', svm_classifier),
-    ('random_forest', rf_classifier)
+    ('catboost', cb_pipeline),
+    ('svm', svm_pipeline),
+    ('random_forest', rf_pipeline)
 ]
 
 # Meta-learner
-meta_learner = LogisticRegression(
+meta_learner_base = LogisticRegression(
     solver='lbfgs',
     max_iter=2000,
+    #class_weight='balanced',
     random_state=RANDOM_STATE
 )
 
 # Stacking Classifier
 stacking_classifier = StackingClassifier(
     estimators=base_estimators,
-    final_estimator=meta_learner,
+    final_estimator=meta_learner_base,
     cv=StratifiedKFold(n_splits=10, shuffle=True, random_state=RANDOM_STATE), 
     stack_method='auto', 
     n_jobs=-1 
 )
+
+param_grid_stacking = {
+    'final_estimator__C': [0.01, 0.1, 1, 10, 100],
+    'final_estimator__class_weight': [None, 'balanced']
+}
 
 # Cross-validation 
 cv_outer = StratifiedKFold(n_splits=N_SPLITS, shuffle=True, random_state=RANDOM_STATE)
@@ -171,30 +177,66 @@ cv_outer = StratifiedKFold(n_splits=N_SPLITS, shuffle=True, random_state=RANDOM_
 # Scoring metrics
 num_classes = len(np.unique(y))
 average_method = 'binary' if num_classes == 2 else 'macro'
-
+main_scorer_name = 'f1' 
+main_scorer = make_scorer(f1_score, average=average_method, zero_division=0)
 scoring_dict = {
     'accuracy': make_scorer(accuracy_score),
     'precision': make_scorer(precision_score, average=average_method, zero_division=0),
     'recall': make_scorer(recall_score, average=average_method, zero_division=0),
     'f1': make_scorer(f1_score, average=average_method, zero_division=0),
-    'auc': make_scorer(roc_auc_score)
+    'auc': 'roc_auc' 
 }
 
 
-# Perform cross-validation
-cv_results = cross_validate(
-    stacking_classifier,
-    X,
+grid_search_stacking = GridSearchCV(
+    estimator=stacking_classifier,
+    param_grid=param_grid_stacking,
+    scoring=main_scorer_name, 
+    cv=cv_outer,              
+    n_jobs=-1,                
+    verbose=1                 
+)
+
+# --- Fit GridSearchCV ---
+print(f"\n--- Tuning Stacking Classifier (Meta-Learner) using {N_SPLITS}-Fold CV ---")
+grid_search_stacking.fit(top_3_x_merged, y)
+
+
+# --- Tuning Results ---
+print("\n--- Tuning Results ---")
+print("Best Parameters Found for Stacking Classifier (Meta-Learner):")
+for param, value in grid_search_stacking.best_params_.items():
+    print(f"  {param}: {value}")
+
+print(f"\nBest Cross-Validation Score ({main_scorer_name.upper()}):")
+print(f"  {grid_search_stacking.best_score_:.4f}")
+
+# --- Evaluate the BEST Stacking Classifier found by GridSearchCV ---
+print("\n--- Evaluating Best Stacking Classifier with Cross-Validation ---")
+best_stacker = grid_search_stacking.best_estimator_
+
+
+
+cv_results_final = cross_validate(
+    best_stacker,
+    top_3_x_merged,
     y,
     cv=cv_outer,
-    scoring=scoring_dict
+    scoring=scoring_dict,
+    n_jobs=-1,
+    error_score='raise'
 )
-print("\n--- Cross-Validation Results ---")
-for metric in cv_results:
-    if metric.startswith('test_'):
-        mean_val = np.nanmean(cv_results[metric])
-        std_val = np.nanstd(cv_results[metric]) 
-        metric_name = metric.split('test_')[1]
-        print(f"  {metric_name.capitalize()}: {mean_val:.4f} (+/- {std_val:.4f})")
 
-print("\nStacking ensemble evaluation complete.")
+
+print("\nFinal Cross-Validation Metrics (Mean +/- Std Dev):")
+for metric_key in scoring_dict.keys():
+    test_score_key = f'test_{metric_key}'
+    if test_score_key in cv_results_final:
+        mean_val = np.nanmean(cv_results_final[test_score_key])
+        std_val = np.nanstd(cv_results_final[test_score_key])
+        print(f"  {metric_key.capitalize()}: {mean_val:.4f} (+/- {std_val:.4f})")
+    else:
+            print(f"  {metric_key.capitalize()}: Metric not found in results.")
+
+
+print("\nStacking ensemble tuning and evaluation complete.")
